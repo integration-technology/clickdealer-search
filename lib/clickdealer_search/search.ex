@@ -13,6 +13,17 @@ defmodule ClickdealerSearch.Search do
 
   """
   def run do
+    case run_silent() do
+      {:ok, results} -> display_results(results)
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Executes a search query and returns results without printing.
+  Returns {:ok, results} or {:error, reason}.
+  """
+  def run_silent do
     body =
       %{
         query: "",
@@ -39,17 +50,28 @@ defmodule ClickdealerSearch.Search do
       "https://advanced-search-v2.clickdealer.co.uk/api/as/v1/engines/prod-3729-v1/search.json"
 
     HTTPoison.post(url, body, headers)
-    |> handle_response()
+    |> handle_response_silent()
   end
 
-  defp handle_response({:error, %HTTPoison.Error{reason: reason}}) do
-    IO.puts("HTTPoison error:")
-    IO.inspect(reason)
+
+  defp handle_response_silent({:error, %HTTPoison.Error{reason: reason}}) do
+    {:error, reason}
   end
 
-  defp handle_response({:ok, %HTTPoison.Response{status_code: 200, body: response_body}}) do
-    IO.puts("Success!")
-    Jason.decode!(response_body) |> transform_results() |> display_table()
+  defp handle_response_silent({:ok, %HTTPoison.Response{status_code: 200, body: response_body}}) do
+    decoded = Jason.decode!(response_body)
+    transformed = transform_results(decoded)
+    {:ok, transformed["results"]}
+  end
+
+  defp handle_response_silent({:ok, %HTTPoison.Response{status_code: status_code}}) do
+    {:error, "Unexpected status code: #{status_code}"}
+  end
+
+  defp display_results(results) when is_list(results) do
+    response = %{"results" => results}
+    display_table(response)
+    :ok
   end
 
   defp transform_results(%{"results" => results} = response) do
@@ -94,7 +116,12 @@ defmodule ClickdealerSearch.Search do
 
   defp display_table(%{"results" => results}) do
     # Print header
-    IO.puts("\n" <> String.pad_trailing("Registration", 15) <> String.pad_trailing("Year", 10) <> String.pad_trailing("Mileage", 15) <> "Price")
+    IO.puts(
+      "\n" <>
+        String.pad_trailing("Registration", 15) <>
+        String.pad_trailing("Year", 10) <> String.pad_trailing("Mileage", 15) <> "Price"
+    )
+
     IO.puts(String.duplicate("-", 55))
 
     # Print each result
@@ -107,12 +134,13 @@ defmodule ClickdealerSearch.Search do
 
       IO.puts(
         String.pad_trailing(to_string(registration), 15) <>
-        String.pad_trailing(to_string(year), 10) <>
-        String.pad_trailing(to_string(mileage), 15) <>
-        price_formatted
+          String.pad_trailing(to_string(year), 10) <>
+          String.pad_trailing(to_string(mileage), 15) <>
+          price_formatted
       )
     end)
 
-    IO.puts("")
+    IO.puts("Found #{length(results)} results.")
+    IO.puts("End of search results.")
   end
 end

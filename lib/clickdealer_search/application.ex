@@ -8,8 +8,8 @@ defmodule ClickdealerSearch.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      # Starts a worker by calling: ClickdealerSearch.Worker.start_link(arg)
-      # {ClickdealerSearch.Worker, arg}
+      # Starts the scheduler to check for vehicles every 30 minutes
+      ClickdealerSearch.Scheduler
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

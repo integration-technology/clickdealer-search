@@ -1,0 +1,35 @@
+[Unit]
+Description=Clickdealer Search Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+WorkingDirectory=/opt/clickdealer-search
+Environment="LANG=en_US.UTF-8"
+Environment="MIX_ENV=prod"
+Environment="RELEASE_NODE=clickdealer@127.0.0.1"
+
+# WhatsApp notification settings
+# Option 1: CallMeBot (free, simple setup)
+Environment="NOTIFIER_TYPE=callmebot"
+Environment="CALLMEBOT_PHONE=YOUR_PHONE_NUMBER"
+Environment="CALLMEBOT_API_KEY=YOUR_API_KEY"
+
+# Option 2: Twilio (more reliable, requires paid account)
+# Environment="NOTIFIER_TYPE=twilio"
+# Environment="TWILIO_ACCOUNT_SID=YOUR_ACCOUNT_SID"
+# Environment="TWILIO_AUTH_TOKEN=YOUR_AUTH_TOKEN"
+# Environment="TWILIO_WHATSAPP_FROM=whatsapp:+14155238886"
+# Environment="WHATSAPP_TO=whatsapp:+447700900000"
+
+ExecStart=/opt/clickdealer-search/bin/clickdealer_search start
+ExecStop=/opt/clickdealer-search/bin/clickdealer_search stop
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=clickdealer-search
+
+[Install]
+WantedBy=multi-user.target
