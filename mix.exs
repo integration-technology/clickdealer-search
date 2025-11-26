@@ -24,7 +24,8 @@ defmodule ClickdealerSearch.MixProject do
   defp deps do
     [
       {:httpoison, "~> 2.3"},
-      {:jason, "~> 1.4"}
+      {:jason, "~> 1.4"},
+      {:tzdata, "~> 1.1"}
     ]
   end
 

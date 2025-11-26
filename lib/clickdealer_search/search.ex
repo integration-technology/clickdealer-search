@@ -1,29 +1,23 @@
 defmodule ClickdealerSearch.Search do
   @moduledoc """
   Handles search functionality for Clickdealer API.
+
+  This module exposes `run/0` which performs the HTTP request, prints a
+  human-readable results table to STDOUT, and returns `{:ok, results}` or
+  `{:error, reason}` so callers (like the scheduler) can act on the results.
   """
 
   @doc """
-  Executes a search query against the Clickdealer API.
+  Execute a search query against the Clickdealer API, print a table of results,
+  and return `{:ok, results}` or `{:error, reason}`.
 
-  ## Examples
+  Example:
 
       iex> ClickdealerSearch.Search.run()
-      :world
+      {:ok, [%{"vrm" => %{"raw" => "RK71SOU"}, ...}, ...]}
 
   """
   def run do
-    case run_silent() do
-      {:ok, results} -> display_results(results)
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  @doc """
-  Executes a search query and returns results without printing.
-  Returns {:ok, results} or {:error, reason}.
-  """
-  def run_silent do
     body =
       %{
         query: "",
@@ -49,41 +43,49 @@ defmodule ClickdealerSearch.Search do
     url =
       "https://advanced-search-v2.clickdealer.co.uk/api/as/v1/engines/prod-3729-v1/search.json"
 
-    HTTPoison.post(url, body, headers)
-    |> handle_response_silent()
+    case HTTPoison.post(url, body, headers) do
+      {:error, %HTTPoison.Error{reason: reason}} ->
+        {:error, reason}
+
+      {:ok, %HTTPoison.Response{status_code: 200, body: response_body}} ->
+        decoded = Jason.decode!(response_body)
+        transformed = transform_results(decoded)
+        results = transformed["results"] || []
+
+        # Print table for human consumption
+        display_table(%{"results" => results})
+
+        # Return results to caller for programmatic use
+        {:ok, results}
+
+      {:ok, %HTTPoison.Response{status_code: status_code, body: response_body}} ->
+        # Provide some context if available
+        message =
+          case response_body do
+            body when is_binary(body) and body != "" ->
+              "Unexpected status code: #{status_code} - #{body}"
+
+            _ ->
+              "Unexpected status code: #{status_code}"
+          end
+
+        {:error, message}
+    end
   end
 
-
-  defp handle_response_silent({:error, %HTTPoison.Error{reason: reason}}) do
-    {:error, reason}
-  end
-
-  defp handle_response_silent({:ok, %HTTPoison.Response{status_code: 200, body: response_body}}) do
-    decoded = Jason.decode!(response_body)
-    transformed = transform_results(decoded)
-    {:ok, transformed["results"]}
-  end
-
-  defp handle_response_silent({:ok, %HTTPoison.Response{status_code: status_code}}) do
-    {:error, "Unexpected status code: #{status_code}"}
-  end
-
-  defp display_results(results) when is_list(results) do
-    response = %{"results" => results}
-    display_table(response)
-    :ok
-  end
-
-  defp transform_results(%{"results" => results} = response) do
+  # Transform the results in-place to make presentation nicer
+  defp transform_results(%{"results" => results} = response) when is_list(results) do
     transformed_results = Enum.map(results, &transform_result/1)
     Map.put(response, "results", transformed_results)
   end
 
-  defp transform_result(result) do
+  defp transform_results(other), do: other
+
+  defp transform_result(result) when is_map(result) do
     result
     |> Map.update("year", nil, fn year_data ->
       case year_data do
-        %{"raw" => raw} -> %{"raw" => round(raw)}
+        %{"raw" => raw} when is_number(raw) -> %{"raw" => round(raw)}
         _ -> year_data
       end
     end)
@@ -95,11 +97,13 @@ defmodule ClickdealerSearch.Search do
     end)
     |> Map.update("mileage", nil, fn mileage_data ->
       case mileage_data do
-        %{"raw" => raw} -> %{"raw" => format_thousands(raw)}
+        %{"raw" => raw} when is_number(raw) -> %{"raw" => format_thousands(raw)}
         _ -> mileage_data
       end
     end)
   end
+
+  defp transform_result(other), do: other
 
   defp format_thousands(number) when is_number(number) do
     number
@@ -114,23 +118,42 @@ defmodule ClickdealerSearch.Search do
 
   defp format_thousands(value), do: value
 
-  defp display_table(%{"results" => results}) do
-    # Print header
+  # Display a simple table to stdout. Accepts a map with "results" => list.
+  defp display_table(%{"results" => results}) when is_list(results) do
+    # Header
     IO.puts(
       "\n" <>
         String.pad_trailing("Registration", 15) <>
-        String.pad_trailing("Year", 10) <> String.pad_trailing("Mileage", 15) <> "Price"
+        String.pad_trailing("Year", 10) <>
+        String.pad_trailing("Mileage", 15) <>
+        "Price"
     )
 
     IO.puts(String.duplicate("-", 55))
 
-    # Print each result
     Enum.each(results, fn result ->
       registration = get_in(result, ["vrm", "raw"]) || "N/A"
       year = get_in(result, ["year", "raw"]) || "N/A"
       mileage = get_in(result, ["mileage", "raw"]) || "N/A"
-      price = get_in(result, ["price", "raw"]) || 0
-      price_formatted = "£ #{format_thousands(round(price))}"
+
+      price_raw = get_in(result, ["price", "raw"]) || 0
+
+      price_number =
+        case price_raw do
+          n when is_number(n) ->
+            round(n)
+
+          s when is_binary(s) ->
+            case Integer.parse(String.replace(s, ",", "")) do
+              {int, _} -> int
+              :error -> 0
+            end
+
+          _ ->
+            0
+        end
+
+      price_formatted = "£ #{format_thousands(price_number)}"
 
       IO.puts(
         String.pad_trailing(to_string(registration), 15) <>
@@ -143,4 +166,6 @@ defmodule ClickdealerSearch.Search do
     IO.puts("Found #{length(results)} results.")
     IO.puts("End of search results.")
   end
+
+  defp display_table(_), do: IO.puts("No results to display.")
 end

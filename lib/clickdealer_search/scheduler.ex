@@ -6,7 +6,8 @@ defmodule ClickdealerSearch.Scheduler do
   use GenServer
   require Logger
 
-  @interval_ms 30 * 60 * 1000  # 30 minutes in milliseconds
+  # 30 minutes in milliseconds
+  @interval_ms 5 * 60 * 1000
   @target_suffix "SOU"
 
   def start_link(opts \\ []) do
@@ -39,20 +40,22 @@ defmodule ClickdealerSearch.Scheduler do
   end
 
   defp within_operating_hours? do
-    now = DateTime.now!("Europe/London")
+    now = DateTime.now!("Europe/London", Tzdata.TimeZoneDatabase)
     hour = now.hour
     hour >= 8 and hour < 18
   end
 
   defp perform_check do
-    case ClickdealerSearch.Search.run_silent() do
+    case ClickdealerSearch.Search.run() do
       {:ok, results} ->
         matches = filter_sou_registrations(results)
 
         if length(matches) > 0 do
           send_alert(matches)
         else
-          Logger.info("No vehicles with registration ending in #{@target_suffix} found")
+          Logger.info(
+            "No vehicles with registration ending in #{@target_suffix} found.  Currently #{length(results)} vehicles live online."
+          )
         end
 
       {:error, reason} ->
@@ -70,7 +73,9 @@ defmodule ClickdealerSearch.Scheduler do
   end
 
   defp send_alert(matches) do
-    Logger.warning("🚨 ALERT: Found #{length(matches)} vehicle(s) with registration ending in #{@target_suffix}")
+    Logger.warning(
+      "🚨 ALERT: Found #{length(matches)} vehicle(s) with registration ending in #{@target_suffix}"
+    )
 
     # Log details
     Enum.each(matches, fn result ->
@@ -88,7 +93,7 @@ defmodule ClickdealerSearch.Scheduler do
 
       Logger.warning(message)
     end)
-    
+
     # Send WhatsApp notification
     ClickdealerSearch.Notifier.send_alert(matches)
   end
