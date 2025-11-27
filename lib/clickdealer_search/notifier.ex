@@ -1,11 +1,11 @@
 defmodule ClickdealerSearch.Notifier do
   @moduledoc """
   Handles sending notifications via WhatsApp.
-  
+
   Supports multiple providers:
   - Twilio (recommended for production)
   - CallMeBot (simple, free, but less reliable)
-  
+
   Configure via environment variables:
   - NOTIFIER_TYPE: "twilio" or "callmebot"
   - For Twilio:
@@ -24,7 +24,7 @@ defmodule ClickdealerSearch.Notifier do
   """
   def send_alert(matches) do
     notifier_type = System.get_env("NOTIFIER_TYPE", "callmebot")
-    
+
     case notifier_type do
       "twilio" -> send_via_twilio(matches)
       "callmebot" -> send_via_callmebot(matches)
@@ -39,91 +39,103 @@ defmodule ClickdealerSearch.Notifier do
     to = System.get_env("WHATSAPP_TO")
 
     if !account_sid || !auth_token || !from || !to do
-      Logger.error("Twilio credentials not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM, and WHATSAPP_TO")
+      Logger.error(
+        "Twilio credentials not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM, and WHATSAPP_TO"
+      )
+
       {:error, :missing_credentials}
     else
+      message = format_message(matches)
 
-    message = format_message(matches)
-    
-    url = "https://api.twilio.com/2010-04-01/Accounts/#{account_sid}/Messages.json"
-    
-    body = URI.encode_query(%{
-      "From" => from,
-      "To" => to,
-      "Body" => message
-    })
-    
-    headers = [
-      {"Content-Type", "application/x-www-form-urlencoded"},
-      {"Authorization", "Basic #{Base.encode64("#{account_sid}:#{auth_token}")}"}
-    ]
-    
-    case HTTPoison.post(url, body, headers) do
-      {:ok, %HTTPoison.Response{status_code: 201}} ->
-        Logger.info("WhatsApp message sent via Twilio")
-        :ok
-      {:ok, %HTTPoison.Response{status_code: status_code, body: body}} ->
-        Logger.error("Twilio API error (#{status_code}): #{body}")
-        {:error, status_code}
-      {:error, %HTTPoison.Error{reason: reason}} ->
-        Logger.error("Failed to send WhatsApp via Twilio: #{inspect(reason)}")
-        {:error, reason}
-    end
+      url = "https://api.twilio.com/2010-04-01/Accounts/#{account_sid}/Messages.json"
+
+      body =
+        URI.encode_query(%{
+          "From" => from,
+          "To" => to,
+          "Body" => message
+        })
+
+      headers = [
+        {"Content-Type", "application/x-www-form-urlencoded"},
+        {"Authorization", "Basic #{Base.encode64("#{account_sid}:#{auth_token}")}"}
+      ]
+
+      case HTTPoison.post(url, body, headers) do
+        {:ok, %HTTPoison.Response{status_code: 201}} ->
+          Logger.info("WhatsApp message sent via Twilio")
+          :ok
+
+        {:ok, %HTTPoison.Response{status_code: status_code, body: body}} ->
+          Logger.error("Twilio API error (#{status_code}): #{body}")
+          {:error, status_code}
+
+        {:error, %HTTPoison.Error{reason: reason}} ->
+          Logger.error("Failed to send WhatsApp via Twilio: #{inspect(reason)}")
+          {:error, reason}
+      end
     end
   end
 
   defp send_via_callmebot(matches) do
-    phone = System.get_env("CALLMEBOT_PHONE")
-    api_key = System.get_env("CALLMEBOT_API_KEY")
+    phone = "447768463864"
+    api_key = "8345825"
 
     if !phone || !api_key do
-      Logger.error("CallMeBot credentials not configured. Set CALLMEBOT_PHONE and CALLMEBOT_API_KEY")
+      Logger.error(
+        "CallMeBot credentials not configured. Set CALLMEBOT_PHONE and CALLMEBOT_API_KEY"
+      )
+
       {:error, :missing_credentials}
     else
+      message = format_message(matches)
 
-    message = format_message(matches)
-    
-    # CallMeBot has a message length limit
-    message = String.slice(message, 0, 1000)
-    
-    url = "https://api.callmebot.com/whatsapp.php?" <>
+      # CallMeBot has a message length limit
+      message = String.slice(message, 0, 1000)
+
+      url =
+        "https://api.callmebot.com/whatsapp.php?" <>
           URI.encode_query(%{
             "phone" => phone,
             "text" => message,
             "apikey" => api_key
           })
-    
-    case HTTPoison.get(url) do
-      {:ok, %HTTPoison.Response{status_code: 200}} ->
-        Logger.info("WhatsApp message sent via CallMeBot")
-        :ok
-      {:ok, %HTTPoison.Response{status_code: status_code, body: body}} ->
-        Logger.error("CallMeBot API error (#{status_code}): #{body}")
-        {:error, status_code}
-      {:error, %HTTPoison.Error{reason: reason}} ->
-        Logger.error("Failed to send WhatsApp via CallMeBot: #{inspect(reason)}")
-        {:error, reason}
-    end
+
+      case HTTPoison.get(url) do
+        {:ok, %HTTPoison.Response{status_code: 200}} ->
+          Logger.info("WhatsApp message sent via CallMeBot")
+          :ok
+
+        {:ok, %HTTPoison.Response{status_code: status_code, body: body}} ->
+          Logger.error("CallMeBot API error (#{status_code}): #{body}")
+          {:error, status_code}
+
+        {:error, %HTTPoison.Error{reason: reason}} ->
+          Logger.error("Failed to send WhatsApp via CallMeBot: #{inspect(reason)}")
+          {:error, reason}
+      end
     end
   end
 
   defp format_message(matches) do
-    header = "🚨 *Car Alert!*\nFound #{length(matches)} vehicle(s) with registration ending in SOU:\n\n"
-    
-    vehicles = Enum.map_join(matches, "\n---\n", fn result ->
-      registration = get_in(result, ["vrm", "raw"]) || "N/A"
-      year = get_in(result, ["year", "raw"]) || "N/A"
-      mileage = get_in(result, ["mileage", "raw"]) || "N/A"
-      price = get_in(result, ["price", "raw"]) || 0
-      
-      """
-      *#{registration}*
-      Year: #{year}
-      Mileage: #{mileage}
-      Price: £#{format_price(price)}
-      """
-    end)
-    
+    header =
+      "🚨 *Car Alert!*\nFound #{length(matches)} vehicle(s) with registration ending in SOU:\n\n"
+
+    vehicles =
+      Enum.map_join(matches, "\n---\n", fn result ->
+        registration = get_in(result, ["vrm", "raw"]) || "N/A"
+        year = get_in(result, ["year", "raw"]) || "N/A"
+        mileage = get_in(result, ["mileage", "raw"]) || "N/A"
+        price = get_in(result, ["price", "raw"]) || 0
+
+        """
+        *#{registration}*
+        Year: #{year}
+        Mileage: #{mileage}
+        Price: £#{format_price(price)}
+        """
+      end)
+
     header <> vehicles
   end
 

@@ -7,7 +7,7 @@ defmodule ClickdealerSearch.Scheduler do
   require Logger
 
   # 30 minutes in milliseconds
-  @interval_ms 5 * 60 * 1000
+  @interval_ms 30 * 60 * 1000
   @target_suffix "SOU"
 
   def start_link(opts \\ []) do
