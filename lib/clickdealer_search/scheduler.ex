@@ -16,8 +16,15 @@ defmodule ClickdealerSearch.Scheduler do
 
   @impl true
   def init(_opts) do
-    # Schedule first check
-    schedule_next_check()
+    # Run immediately if within operating hours
+    if within_operating_hours?() do
+      Logger.info("Running initial search check on startup")
+      send(self(), :check)
+    else
+      Logger.debug("Outside operating hours (8am-6pm), scheduling first check")
+      schedule_next_check()
+    end
+
     {:ok, %{}}
   end
 
