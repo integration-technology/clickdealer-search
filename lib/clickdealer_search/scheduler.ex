@@ -61,12 +61,14 @@ defmodule ClickdealerSearch.Scheduler do
           send_alert(matches)
         else
           Logger.info(
-            "No vehicles with registration ending in #{@target_suffix} found.  Currently #{length(results)} vehicles live online."
+            IO.ANSI.yellow() <>
+              "No vehicles with registration ending in #{@target_suffix} found.  Currently #{length(results)} vehicles live online." <>
+              IO.ANSI.reset()
           )
         end
 
       {:error, reason} ->
-        Logger.error("Search failed: #{inspect(reason)}")
+        Logger.error(IO.ANSI.red() <> "Search failed: #{inspect(reason)}" <> IO.ANSI.reset())
     end
   end
 
@@ -81,7 +83,9 @@ defmodule ClickdealerSearch.Scheduler do
 
   defp send_alert(matches) do
     Logger.warning(
-      "🚨 ALERT: Found #{length(matches)} vehicle(s) with registration ending in #{@target_suffix}"
+      IO.ANSI.green() <>
+        "🚨 ALERT: Found #{length(matches)} vehicle(s) with registration ending in #{@target_suffix}" <>
+        IO.ANSI.reset()
     )
 
     # Log details
