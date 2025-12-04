@@ -9,7 +9,9 @@ defmodule ClickdealerSearch.Application do
   def start(_type, _args) do
     children = [
       # Starts the scheduler to check for vehicles every 30 minutes
-      ClickdealerSearch.Scheduler
+      ClickdealerSearch.Scheduler,
+      # Monitors specific car (ID: 7460084) and notifies on status changes every 15 minutes
+      ClickdealerSearch.CarMonitor
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

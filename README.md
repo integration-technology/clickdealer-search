@@ -4,10 +4,21 @@ Monitors Clickdealer for Volvo XC90s with a registration ending in "SOU".
 
 ## Features
 
+### Scheduler (Vehicle Search)
 - Runs automatically every 30 minutes
 - Only checks between 8am-6pm (UK time)
-- Sends macOS notification when matching vehicle is found
+- Searches for Volvo XC90s with registration ending in "SOU"
+- Sends WhatsApp notification when matching vehicle is found
 - Logs all activity
+
+### Car Monitor
+- Monitors a specific car (ID: 7460084) for status changes
+- Checks every 15 minutes
+- Notifies via WhatsApp when:
+  - Price changes
+  - Mileage changes
+  - Car becomes unavailable
+- Uses OTP recursion (GenServer) for reliability
 
 ## Usage
 
@@ -36,10 +47,16 @@ pkill -f 'clickdealer@localhost'
 ```bash
 iex -S mix
 
-# Run a one-time check
+# Run a one-time search check
 ClickdealerSearch.run()
 
-# The scheduler is already running in the background
+# Check the status of your monitored car
+ClickdealerSearch.CarMonitor.get_state()
+
+# Manually trigger a car status check
+ClickdealerSearch.CarMonitor.check_now()
+
+# The scheduler and car monitor are already running in the background
 # You can check the logs or wait for notifications
 ```
 

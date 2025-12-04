@@ -23,16 +23,28 @@ defmodule ClickdealerSearch.Notifier do
   Sends a WhatsApp notification with vehicle details.
   """
   def send_alert(matches) do
+    message = format_message(matches)
+    send_message(message)
+  end
+
+  @doc """
+  Sends a WhatsApp notification with a custom message.
+  """
+  def send_custom_message(message) do
+    send_message(message)
+  end
+
+  defp send_message(message) do
     notifier_type = System.get_env("NOTIFIER_TYPE", "callmebot")
 
     case notifier_type do
-      "twilio" -> send_via_twilio(matches)
-      "callmebot" -> send_via_callmebot(matches)
+      "twilio" -> send_via_twilio(message)
+      "callmebot" -> send_via_callmebot(message)
       _ -> Logger.error("Unknown notifier type: #{notifier_type}")
     end
   end
 
-  defp send_via_twilio(matches) do
+  defp send_via_twilio(message) do
     account_sid = System.get_env("TWILIO_ACCOUNT_SID")
     auth_token = System.get_env("TWILIO_AUTH_TOKEN")
     from = System.get_env("TWILIO_WHATSAPP_FROM")
@@ -45,7 +57,6 @@ defmodule ClickdealerSearch.Notifier do
 
       {:error, :missing_credentials}
     else
-      message = format_message(matches)
 
       url = "https://api.twilio.com/2010-04-01/Accounts/#{account_sid}/Messages.json"
 
@@ -77,7 +88,7 @@ defmodule ClickdealerSearch.Notifier do
     end
   end
 
-  defp send_via_callmebot(matches) do
+  defp send_via_callmebot(message) do
     phone = "447768463864"
     api_key = "8345825"
 
@@ -88,7 +99,6 @@ defmodule ClickdealerSearch.Notifier do
 
       {:error, :missing_credentials}
     else
-      message = format_message(matches)
 
       # CallMeBot has a message length limit
       message = String.slice(message, 0, 1000)
