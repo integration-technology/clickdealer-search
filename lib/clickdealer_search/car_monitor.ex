@@ -126,7 +126,8 @@ defmodule ClickdealerSearch.CarMonitor do
     
     if state.last_status == nil do
       # First check - just store the status
-      Logger.info("Initial car status: #{inspect(current_status)}")
+      formatted_status = format_status_for_logging(current_status)
+      Logger.info("Initial car status: #{inspect(formatted_status)}")
       %{state | last_status: current_status, last_details: car_details}
     else
       # Check if status or price changed
@@ -146,7 +147,7 @@ defmodule ClickdealerSearch.CarMonitor do
           %{state | last_status: current_status, last_details: car_details}
         
         price_changed ->
-          Logger.warning("💰 Car price CHANGED from £#{format_number(state.last_status.price)} to £#{format_number(current_status.price)}")
+          Logger.warning("💰 Car price CHANGED from #{format_price(state.last_status.price)} to #{format_price(current_status.price)}")
           notify_price_change(current_status, state.last_status)
           %{state | last_status: current_status, last_details: car_details}
         
@@ -158,14 +159,33 @@ defmodule ClickdealerSearch.CarMonitor do
   end
 
   defp extract_status(car_details) do
-    status_code = get_in(car_details, ["status", "raw"])
+    status_code = get_in(car_details, ["status", "raw"]) |> to_integer()
+    price = get_in(car_details, ["price", "raw"]) |> to_integer()
+    year = get_in(car_details, ["year", "raw"]) |> to_integer()
     
     %{
       status_code: status_code,
       status_label: status_code_to_label(status_code),
       vrm: get_in(car_details, ["vrm", "raw"]),
-      price: get_in(car_details, ["price", "raw"]),
-      year: get_in(car_details, ["year", "raw"])
+      price: price,
+      year: year
+    }
+  end
+
+  defp to_integer(val) when is_number(val), do: round(val)
+  defp to_integer(val) when is_binary(val), do: String.to_integer(val)
+  defp to_integer(nil), do: 0
+
+  defp format_price(price) when is_number(price) do
+    "£ #{format_number(price)}"
+  end
+  
+  defp format_price(price), do: to_string(price)
+
+  defp format_status_for_logging(status) do
+    %{
+      status | 
+      price: format_price(status.price)
     }
   end
 
@@ -213,7 +233,7 @@ defmodule ClickdealerSearch.CarMonitor do
     
     Car: #{vrm} (#{@car_id})
     Year: #{new_status.year || "N/A"}
-    Price: £#{format_number(new_status.price)}
+    Price: #{format_price(new_status.price)}
     
     Status Changed:
     FROM: #{old_status_label} (#{old_status_code})
@@ -254,8 +274,8 @@ defmodule ClickdealerSearch.CarMonitor do
     Status: #{new_status.status_label}
     
     Price Changed:
-    FROM: £#{format_number(old_status.price)}
-    TO:   £#{format_number(new_status.price)}
+    FROM: #{format_price(old_status.price)}
+    TO:   #{format_price(new_status.price)}
     """
   end
 
